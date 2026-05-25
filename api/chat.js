@@ -27,7 +27,12 @@ export default async function handler(req, res) {
   }
 
   const apiKey = String(req.headers['x-openrouter-api-key'] || process.env.OPENROUTER_API_KEY || '').trim();
-  if (!apiKey) {
+  const authHeader = String(req.headers.authorization || '').trim();
+  const bearerKey = authHeader.toLowerCase().startsWith('bearer ')
+    ? authHeader.slice(7).trim()
+    : '';
+  const resolvedApiKey = apiKey || bearerKey;
+  if (!resolvedApiKey) {
     return res.status(500).json({
       error: { message: 'Missing OpenRouter API key. Add OPENROUTER_API_KEY in Vercel settings or config.js.' },
     });
@@ -37,7 +42,7 @@ export default async function handler(req, res) {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${resolvedApiKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': req.headers.origin || req.headers.referer || 'https://review-app.vercel.app',
         'X-Title': 'Vandan Review Generator',
