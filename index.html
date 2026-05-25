@@ -433,6 +433,10 @@ body {
 const GOOGLE_REVIEW_URL = 'https://g.page/r/CX3SeIkj-1NQEAE/review';
 const API_KEY = (window.APP_CONFIG?.OPENROUTER_API_KEY || '').trim();
 
+function useServerProxy() {
+  return !API_KEY || API_KEY === 'YOUR_API_KEY' || API_KEY === 'PASTE_YOUR_OPENROUTER_KEY_HERE';
+}
+
 let selectedRole = '';
 let selectedYear = '';
 let selectedMentions = new Set();
