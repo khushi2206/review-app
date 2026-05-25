@@ -266,7 +266,8 @@ body {
   border: 1px solid var(--line-2);
   border-radius: var(--radius);
 }
-.qr-card canvas {
+.qr-card canvas,
+.qr-card img {
   width: 120px; height: 120px;
   border-radius: 8px;
   flex-shrink: 0;
@@ -416,7 +417,7 @@ body {
 
   <div class="qr-section">
     <div class="qr-card">
-      <canvas id="qr-code" aria-label="QR code for Google review"></canvas>
+      <img src="./google-review-qr.png" alt="QR code for Google review" width="120" height="120" loading="lazy" />
       <div class="qr-text">
         <strong>Scan to leave a Google review</strong>
         <span id="qr-link-label">g.page/r/CX3SeIkj-1NQEAE/review</span>
@@ -428,22 +429,9 @@ body {
 </div>
 
 <script src="config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 <script>
 const GOOGLE_REVIEW_URL = 'https://g.page/r/CX3SeIkj-1NQEAE/review';
 const API_KEY = (window.APP_CONFIG?.OPENROUTER_API_KEY || '').trim();
-
-function renderQrCode() {
-  const canvas = document.getElementById('qr-code');
-  if (!canvas || typeof QRCode === 'undefined') return;
-  QRCode.toCanvas(canvas, GOOGLE_REVIEW_URL, {
-    width: 120,
-    margin: 1,
-    color: { dark: '#1E2D3D', light: '#FFFFFF' },
-  });
-}
-
-document.addEventListener('DOMContentLoaded', renderQrCode);
 
 let selectedRole = '';
 let selectedYear = '';
@@ -575,26 +563,36 @@ function shouldTryNextModel(status, errMsg) {
   return status === 429 || status === 502 || status === 503;
 }
 
-async function callOpenRouter(model, userContent) {
+function isAuthError(status, errMsg) {
+  if (status === 401 || status === 403) return true;
+  return /missing authentication|authentication header|unauthorized|invalid api key|bearer/i.test(errMsg || '');
+}
+
+async function callOpenRouterDirect(model, userContent) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 90000);
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Title': 'Vandan Review Generator',
+  };
+  headers['Authorization'] = `Bearer ${getApiKey()}`;
+  headers['HTTP-Referer'] = (typeof location !== 'undefined' && location.origin)
+    ? location.origin
+    : 'http://127.0.0.1:5500';
+
+  const payload = {
+    model,
+    messages: [{ role: 'user', content: userContent }],
+    max_tokens: 400,
+    temperature: 0.85,
+  };
 
   try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       signal: controller.signal,
-      headers: {
-        'Authorization': `Bearer ${API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://127.0.0.1:5500',
-        'X-Title': 'Vandan Review Generator',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: userContent }],
-        max_tokens: 400,
-        temperature: 0.85,
-      }),
+      headers,
+      body: JSON.stringify(payload),
     });
 
     const data = await response.json();
@@ -609,11 +607,73 @@ async function callOpenRouter(model, userContent) {
 
     return {
       ok: false,
+      status: response.status,
       message: errMsg || 'Empty response from model.',
       tryNext: shouldTryNextModel(response.status, errMsg) || !reply,
     };
   } finally {
     clearTimeout(timer);
+  }
+}
+
+async function callOpenRouterViaProxy(model, userContent) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 90000);
+  const payload = {
+    model,
+    messages: [{ role: 'user', content: userContent }],
+    max_tokens: 400,
+    temperature: 0.85,
+  };
+
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Title': 'Vandan Review Generator',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+    console.log('[OpenRouter proxy]', model, response.status, data);
+
+    const reply = extractReply(data);
+    const errMsg = data?.error?.message || '';
+
+    if (response.ok && reply) {
+      return { ok: true, reply };
+    }
+
+    return {
+      ok: false,
+      status: response.status,
+      message: errMsg || 'Empty response from model.',
+      tryNext: shouldTryNextModel(response.status, errMsg) || !reply,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function callOpenRouter(model, userContent) {
+  if (useServerProxy()) {
+    return callOpenRouterViaProxy(model, userContent);
+  }
+
+  const directResult = await callOpenRouterDirect(model, userContent);
+  if (directResult.ok || !isAuthError(directResult.status, directResult.message)) {
+    return directResult;
+  }
+
+  try {
+    const proxyResult = await callOpenRouterViaProxy(model, userContent);
+    if (proxyResult.ok) return proxyResult;
+    return proxyResult.message ? proxyResult : directResult;
+  } catch {
+    return directResult;
   }
 }
 
