@@ -583,6 +583,10 @@ function shouldTryNextModel(status, errMsg) {
   return status === 429 || status === 502 || status === 503;
 }
 
+function isMissingApiKeyError(message) {
+  return /missing openrouter api key|add openrouter_api_key/i.test(String(message || ''));
+}
+
 function isAuthError(status, errMsg) {
   if (status === 401 || status === 403) return true;
   return /missing authentication|authentication header|unauthorized|invalid api key|bearer/i.test(errMsg || '');
@@ -779,9 +783,11 @@ async function generate() {
   } catch (e) {
     thinkWrap.style.display = 'none';
     const msg = (e.message || '').toLowerCase();
-    const friendly = msg.includes('provider') || msg.includes('busy') || msg.includes('rate')
+    const friendly = isMissingApiKeyError(e.message)
+      ? 'Vercel is missing OPENROUTER_API_KEY. Add it in Project Settings → Environment Variables, then redeploy.'
+      : (msg.includes('provider') || msg.includes('busy') || msg.includes('rate')
       ? 'Servers are busy — please click Generate again in a few seconds.'
-      : ('Could not generate: ' + e.message);
+      : ('Could not generate: ' + e.message));
     showError(friendly);
   }
 
