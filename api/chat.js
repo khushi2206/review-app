@@ -1,7 +1,7 @@
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, HTTP-Referer, X-Title');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, HTTP-Referer, X-Title, X-OpenRouter-Api-Key');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -26,10 +26,10 @@ export default async function handler(req, res) {
     return { data: null, rawText: text };
   }
 
-  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+  const apiKey = String(req.headers['x-openrouter-api-key'] || process.env.OPENROUTER_API_KEY || '').trim();
   if (!apiKey) {
     return res.status(500).json({
-      error: { message: 'Server missing OPENROUTER_API_KEY. Add it in Vercel project settings.' },
+      error: { message: 'Missing OpenRouter API key. Add OPENROUTER_API_KEY in Vercel settings or config.js.' },
     });
   }
 
