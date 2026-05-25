@@ -1,0 +1,7 @@
+{
+  "name": "vandan-review-generator",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/generate-config.js"
+  }
+}

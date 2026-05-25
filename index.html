@@ -431,7 +431,7 @@ body {
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 <script>
 const GOOGLE_REVIEW_URL = 'https://g.page/r/CX3SeIkj-1NQEAE/review';
-const API_KEY = window.OPENROUTER_API_KEY || '';
+const API_KEY = (window.APP_CONFIG?.OPENROUTER_API_KEY || '').trim();
 
 function renderQrCode() {
   const canvas = document.getElementById('qr-code');
@@ -643,10 +643,6 @@ async function generateReviewWithFallback() {
 }
 
 async function generate() {
-  if (!API_KEY) {
-    alert('Add your OpenRouter API key in config.js (copy from config.example.js).');
-    return;
-  }
   if (!selectedRole) {
     alert('Please select who you are.');
     return;
