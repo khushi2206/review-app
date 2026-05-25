@@ -90,6 +90,47 @@ body {
   font-weight: 500; color: var(--muted); font-size: 12.5px;
 }
 
+.api-note {
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.api-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.api-row input {
+  flex: 1 1 240px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  font: inherit;
+  color: var(--ink);
+  background: #FFFFFF;
+}
+.api-row button {
+  padding: 12px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: #FFFFFF;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.api-row button.secondary {
+  color: var(--muted);
+}
+.api-status {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.api-status.ok { color: var(--ok); }
+.api-status.warn { color: #A15C00; }
+
 /* ── Role grid ────────────────────────────────── */
 .roles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 .role-btn {
@@ -314,6 +355,17 @@ body {
   <div class="card">
 
     <div class="step">
+      <div class="step-label">OpenRouter API key <span class="label-note">required to generate</span></div>
+      <div class="api-note">Add a real OpenRouter key once. It stays in this browser only and is not shared unless you choose to use the app here.</div>
+      <div class="api-row">
+        <input id="api-key-input" type="password" inputmode="text" autocomplete="off" spellcheck="false" placeholder="sk-or-v1-..." />
+        <button type="button" id="api-key-save-btn">Save</button>
+        <button type="button" id="api-key-clear-btn" class="secondary">Clear</button>
+      </div>
+      <div id="api-key-status" class="api-status"></div>
+    </div>
+
+    <div class="step">
       <div class="step-label">Who are you?</div>
       <div class="roles">
         <button class="role-btn" onclick="selectRole(this,'Consultant Radiologist')"><span class="role-icon">🩻</span>Radiologist</button>
@@ -431,7 +483,8 @@ body {
 <script src="config.js"></script>
 <script>
 const GOOGLE_REVIEW_URL = 'https://g.page/r/CX3SeIkj-1NQEAE/review';
-const API_KEY = (window.APP_CONFIG?.OPENROUTER_API_KEY || '').trim();
+const STORAGE_KEY = 'vandan-openrouter-api-key';
+const BUILT_IN_API_KEY = (window.APP_CONFIG?.OPENROUTER_API_KEY || '').trim();
 
 function hasRealApiKey(key) {
   const value = String(key || '').trim();
@@ -440,12 +493,40 @@ function hasRealApiKey(key) {
   return true;
 }
 
+function readSavedApiKey() {
+  try {
+    return localStorage.getItem(STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function saveApiKey(value) {
+  try {
+    localStorage.setItem(STORAGE_KEY, value);
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+function clearSavedApiKey() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    return false;
+  }
+  return true;
+}
+
 function getApiKey() {
-  return hasRealApiKey(API_KEY) ? API_KEY : '';
+  const savedKey = readSavedApiKey();
+  if (hasRealApiKey(savedKey)) return savedKey;
+  return hasRealApiKey(BUILT_IN_API_KEY) ? BUILT_IN_API_KEY : '';
 }
 
 function useServerProxy() {
-  return !hasRealApiKey(API_KEY);
+  return !hasRealApiKey(getApiKey());
 }
 
 let selectedRole = '';
@@ -498,6 +579,58 @@ function toggleMention(btn, mention) {
     btn.classList.add('active');
   }
 }
+
+function updateApiKeyStatus(message, tone) {
+  const status = document.getElementById('api-key-status');
+  if (!status) return;
+  status.textContent = message;
+  status.className = 'api-status' + (tone ? ` ${tone}` : '');
+}
+
+function syncApiKeyControls() {
+  const input = document.getElementById('api-key-input');
+  if (input) input.value = hasRealApiKey(readSavedApiKey()) ? readSavedApiKey() : '';
+
+  if (hasRealApiKey(readSavedApiKey())) {
+    updateApiKeyStatus('Using a key saved in this browser.', 'ok');
+  } else if (hasRealApiKey(BUILT_IN_API_KEY)) {
+    updateApiKeyStatus('Using the key from config.js.', 'ok');
+  } else {
+    updateApiKeyStatus('No key saved yet. Save a real OpenRouter key to generate reviews.', 'warn');
+  }
+}
+
+function setupApiKeyControls() {
+  const input = document.getElementById('api-key-input');
+  const saveBtn = document.getElementById('api-key-save-btn');
+  const clearBtn = document.getElementById('api-key-clear-btn');
+
+  if (!input || !saveBtn || !clearBtn) return;
+
+  saveBtn.addEventListener('click', () => {
+    const value = input.value.trim();
+    if (!hasRealApiKey(value)) {
+      updateApiKeyStatus('Paste a real OpenRouter API key first.', 'warn');
+      input.focus();
+      return;
+    }
+
+    saveApiKey(value);
+    syncApiKeyControls();
+    updateApiKeyStatus('API key saved in this browser.', 'ok');
+  });
+
+  clearBtn.addEventListener('click', () => {
+    clearSavedApiKey();
+    input.value = '';
+    syncApiKeyControls();
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  setupApiKeyControls();
+  syncApiKeyControls();
+});
 
 function buildPrompt() {
   let p = '';
@@ -747,6 +880,13 @@ async function generateReviewWithFallback() {
 }
 
 async function generate() {
+  if (!getApiKey()) {
+    showError('Save a real OpenRouter API key first, then try Generate again.');
+    const input = document.getElementById('api-key-input');
+    if (input) input.focus();
+    return;
+  }
+
   if (!selectedRole) {
     alert('Please select who you are.');
     return;

@@ -14,13 +14,14 @@ Web app for **Vandan Distributors** (Visnagar, Gujarat) that helps doctors, tech
 ## Setup
 
 1. Copy `config.example.js` to `config.js` if `config.js` does not exist.
-2. Set `OPENROUTER_API_KEY` in `config.js` to your [OpenRouter API key](https://openrouter.ai/keys).
+2. Either set `OPENROUTER_API_KEY` in `config.js` or paste your key into the on-page key box and save it in the browser.
 
 ### Deploy on Vercel
 
 1. Import the repo at [vercel.com](https://vercel.com).
-2. Add environment variable **`OPENROUTER_API_KEY`** in Project Settings → Environment Variables.
+2. Add environment variable **`OPENROUTER_API_KEY`** in Project Settings → Environment Variables for server-side proxy usage.
 3. Deploy — the build writes `config.js` from that variable automatically.
+4. If you do not want to set a Vercel env var, save a real OpenRouter key in the browser key box before generating reviews.
 
 ## Run locally
 
