@@ -752,11 +752,6 @@ async function generateReviewWithFallback() {
 }
 
 async function generate() {
-  if (!getApiKey()) {
-    showError('OpenRouter API key is missing in config.js. Add a real key there, then reload the page.');
-    return;
-  }
-
   if (!selectedRole) {
     alert('Please select who you are.');
     return;
