@@ -572,6 +572,21 @@ function isAuthError(status, errMsg) {
   return /missing authentication|authentication header|unauthorized|invalid api key|bearer/i.test(errMsg || '');
 }
 
+async function parseJsonResponse(response) {
+  const contentType = response.headers.get('content-type') || '';
+  const text = await response.text();
+
+  if (contentType.includes('application/json')) {
+    try {
+      return { data: JSON.parse(text), rawText: text };
+    } catch (error) {
+      return { data: null, rawText: text, parseError: error };
+    }
+  }
+
+  return { data: null, rawText: text };
+}
+
 async function callOpenRouterDirect(model, userContent) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 90000);
@@ -599,7 +614,13 @@ async function callOpenRouterDirect(model, userContent) {
       body: JSON.stringify(payload),
     });
 
-    const data = await response.json();
+    const { data, rawText, parseError } = await parseJsonResponse(response);
+    if (parseError) {
+      throw new Error('OpenRouter returned invalid JSON: ' + parseError.message);
+    }
+    if (!data) {
+      throw new Error(rawText ? ('OpenRouter returned non-JSON response: ' + rawText.slice(0, 120)) : 'OpenRouter returned an empty response.');
+    }
     console.log('[OpenRouter]', model, response.status, data);
 
     const reply = extractReply(data);
@@ -641,7 +662,13 @@ async function callOpenRouterViaProxy(model, userContent) {
       body: JSON.stringify(payload),
     });
 
-    const data = await response.json();
+    const { data, rawText, parseError } = await parseJsonResponse(response);
+    if (parseError) {
+      throw new Error('Proxy returned invalid JSON: ' + parseError.message);
+    }
+    if (!data) {
+      throw new Error(rawText ? ('Proxy returned non-JSON response: ' + rawText.slice(0, 120)) : 'Proxy returned an empty response.');
+    }
     console.log('[OpenRouter proxy]', model, response.status, data);
 
     const reply = extractReply(data);
