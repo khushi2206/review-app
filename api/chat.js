@@ -26,12 +26,20 @@ export default async function handler(req, res) {
     return { data: null, rawText: text };
   }
 
-  const apiKey = String(req.headers['x-openrouter-api-key'] || process.env.OPENROUTER_API_KEY || '').trim();
+  function normalizeApiKey(value) {
+    const key = String(value || '').trim();
+    if (!key) return '';
+    if (key === 'YOUR_API_KEY' || key === 'PASTE_YOUR_OPENROUTER_KEY_HERE') return '';
+    return key;
+  }
+
+  const apiKey = normalizeApiKey(process.env.OPENROUTER_API_KEY);
+  const forwardedKey = normalizeApiKey(req.headers['x-openrouter-api-key']);
   const authHeader = String(req.headers.authorization || '').trim();
   const bearerKey = authHeader.toLowerCase().startsWith('bearer ')
-    ? authHeader.slice(7).trim()
+    ? normalizeApiKey(authHeader.slice(7))
     : '';
-  const resolvedApiKey = apiKey || bearerKey;
+  const resolvedApiKey = apiKey || forwardedKey || bearerKey;
   if (!resolvedApiKey) {
     return res.status(500).json({
       error: { message: 'Missing OpenRouter API key. Add OPENROUTER_API_KEY in Vercel settings or config.js.' },

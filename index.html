@@ -433,12 +433,19 @@ body {
 const GOOGLE_REVIEW_URL = 'https://g.page/r/CX3SeIkj-1NQEAE/review';
 const API_KEY = (window.APP_CONFIG?.OPENROUTER_API_KEY || '').trim();
 
+function hasRealApiKey(key) {
+  const value = String(key || '').trim();
+  if (!value) return false;
+  if (value === 'YOUR_API_KEY' || value === 'PASTE_YOUR_OPENROUTER_KEY_HERE') return false;
+  return true;
+}
+
 function getApiKey() {
-  return API_KEY;
+  return hasRealApiKey(API_KEY) ? API_KEY : '';
 }
 
 function useServerProxy() {
-  return !API_KEY || API_KEY === 'YOUR_API_KEY' || API_KEY === 'PASTE_YOUR_OPENROUTER_KEY_HERE';
+  return !hasRealApiKey(API_KEY);
 }
 
 let selectedRole = '';
@@ -662,8 +669,8 @@ async function callOpenRouterViaProxy(model, userContent) {
       headers: {
         'Content-Type': 'application/json',
         'X-Title': 'Vandan Review Generator',
-        ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
-        ...(API_KEY ? { 'X-OpenRouter-Api-Key': API_KEY } : {}),
+        ...(getApiKey() ? { Authorization: `Bearer ${getApiKey()}` } : {}),
+        ...(getApiKey() ? { 'X-OpenRouter-Api-Key': getApiKey() } : {}),
       },
       body: JSON.stringify(payload),
     });
